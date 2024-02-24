@@ -1,0 +1,75 @@
+name: Build version
+
+on:
+  push:
+    tags: [ '*' ]
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14 # M1
+            package: darwin-universal
+            extension: app
+            preMake: npm run unquarantine:darwin-universal
+            source: out/make/zip/darwin/universal/handbook*.zip
+            target: out/make/handbook-darwin-universal.zip
+          - os: macos-14 # M1
+            package: darwin-arm64
+            extension: app
+            preMake: npm run unquarantine:darwin-arm64
+            source: out/make/zip/darwin/arm64/handbook*.zip
+            target: out/make/handbook-darwin-arm64.zip
+          - os: macos-13
+            package: darwin-x64
+            extension: app
+            preMake: npm run unquarantine:darwin-x64
+            source: out/make/zip/darwin/x64/handbook*.zip
+            target: out/make/handbook-darwin-x64.zip
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js 21.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 21.x
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Package ${{ matrix.package }}
+      run: npm run package:${{ matrix.package }}
+
+    - name: a
+      run: npm run verify:${{ matrix.package }}
+
+    - name: b
+      run: npm run xattr:${{ matrix.package }}
+
+    - name: Pre-make
+      if: ${{ matrix.preMake }}
+      run: ${{ matrix.preMake }}
+
+    - name: c
+      run: npm run xattr:${{ matrix.package }}
+
+    - name: Make ${{ matrix.package }}
+      run: npm run make:${{ matrix.package }}-${{ matrix.extension }}
+
+    - name: Rename Binaries
+      run: mv ${{ matrix.source }} ${{ matrix.target }}
+
+    - name: Upload files to a GitHub release
+      uses: svenstaro/upload-release-action@2.9.0
+      with:
+        file: ${{ matrix.target }}
+        overwrite: true
