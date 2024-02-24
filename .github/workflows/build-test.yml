@@ -1,0 +1,66 @@
+name: Build version
+
+on:
+  push:
+    tags: [ '*' ]
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14 # M1
+            package: darwin-universal
+            extension: dmg
+            source: out/make/handbook*.dmg
+            target: out/make/handbook-darwin-universal.dmg
+          - os: macos-14 # M1
+            package: darwin-arm64
+            extension: dmg
+            source: out/make/handbook*.dmg
+            target: out/make/handbook-darwin-arm64.dmg
+          - os: macos-14
+            package: darwin-x64
+            extension: dmg
+            source: out/make/handbook*.dmg
+            target: out/make/handbook-darwin-x64.dmg
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js 21.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 21.x
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Package ${{ matrix.package }}
+      run: npm run package:${{ matrix.package }}
+
+    - name: Pre-make
+      if: ${{ matrix.preMake }}
+      run: ${{ matrix.preMake }}
+
+    - name: Make ${{ matrix.package }}
+      run: npm run make:${{ matrix.package }}-${{ matrix.extension }} -- --skip-package
+
+    - name: List artifacts
+      run: find out/make -type f
+
+    - name: Rename Binaries
+      run: mv ${{ matrix.source }} ${{ matrix.target }}
+
+    - name: Upload files to a GitHub release
+      uses: svenstaro/upload-release-action@2.9.0
+      with:
+        file: ${{ matrix.target }}
+        overwrite: true
